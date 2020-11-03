@@ -1,33 +1,19 @@
-FROM jboss/base-jdk:8
+FROM registry.access.redhat.com/ubi8/ubi-minimal
 MAINTAINER Ondrej Chaloupka <ochaloup@redhat.com>
 EXPOSE 8080
 
-# using jboss user as one java jar is started under
-USER root
-RUN mkdir /data \
-  && chown -R jboss /data \
-  && usermod -g root -G `id -g jboss` jboss \
-  && chmod -R "g+rwX" /data \
-  && chown -R jboss:root /data
-RUN mkdir /deployments \
-  && chown -R jboss /deployments \
-  && chmod -R "g+rwX" /deployments \
-  && chown -R jboss:root /deployments
-USER jboss
+WORKDIR /work/
 
 ARG NARAYANA_VERSION
 RUN test -n "$NARAYANA_VERSION" || (echo "NARAYANA_VERSION  not set" && false)
 
 RUN curl -LOk https://www.jboss.org/jbosstm/downloads/${NARAYANA_VERSION}/binary/narayana-full-${NARAYANA_VERSION}-bin.zip \
-    && unzip -j narayana-full-${NARAYANA_VERSION}-bin.zip narayana-full-${NARAYANA_VERSION}/rts/lra/lra-coordinator-thorntail.jar -d /deployments/ \
+    && unzip -j narayana-full-${NARAYANA_VERSION}-bin.zip narayana-full-${NARAYANA_VERSION}/rts/lra/lra-coordinator-runner -d /work/application \
     && rm narayana-full-$NARAYANA_VERSION-bin.zip
-
-COPY run-lra-coordinator.sh /deployments
 
 # expected values INFO, DEBUG, TRACE...
 ENV LOG_LEVEL="INFO"
 # path to the data directory (persistent volume)
 ENV OBJECT_STORE_PATH="/data"
 
-ENTRYPOINT ["/bin/sh", "/deployments/run-lra-coordinator.sh"]
-CMD [ "/deployments/lra-coordinator-thorntail.jar" ]
+CMD ["./application", "-Dquarkus.http.host=0.0.0.0", "-Dquarkus.log.level=${LOG_LEVEL}"]
